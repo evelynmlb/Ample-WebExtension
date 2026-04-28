@@ -114,10 +114,6 @@ const openLibrary = async (): Promise<void> => {
   await chrome.tabs.create({ url: LIBRARY_URL });
 };
 
-chrome.action.onClicked.addListener(() => {
-  void openLibrary();
-});
-
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "open-popup") {
     await openLibrary();

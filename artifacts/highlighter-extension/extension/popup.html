@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Highlighter</title>
+    <style>
+      :root {
+        --bg: #faf7f2;
+        --surface: #ffffff;
+        --border: #e8e2d6;
+        --text: #1a1715;
+        --muted: #6b635a;
+        --accent: #2a221d;
+        --accent-text: #ffffff;
+        --y: #ffe680;
+        --g: #b7f0c2;
+        --b: #b8dcff;
+        --p: #ffc9de;
+        --o: #ffd3a8;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          system-ui, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        width: 360px;
+        max-height: 540px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.4;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+      .title {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+      .count {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 1px;
+      }
+      .open-btn {
+        appearance: none;
+        border: 0;
+        background: var(--accent);
+        color: var(--accent-text);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 7px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: opacity 0.15s ease;
+      }
+      .open-btn:hover { opacity: 0.85; }
+      .open-btn:active { opacity: 0.7; }
+      .list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 6px 8px 10px;
+      }
+      .list::-webkit-scrollbar { width: 8px; }
+      .list::-webkit-scrollbar-thumb {
+        background: #d8d2c4;
+        border-radius: 4px;
+      }
+      .item {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin: 6px 4px;
+        padding: 10px 12px 10px 14px;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.1s ease, border-color 0.15s ease;
+      }
+      .item:hover {
+        border-color: #c9c0ad;
+      }
+      .item:active { transform: translateY(1px); }
+      .stripe {
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+      }
+      .stripe.yellow { background: var(--y); }
+      .stripe.green { background: var(--g); }
+      .stripe.blue { background: var(--b); }
+      .stripe.pink { background: var(--p); }
+      .stripe.orange { background: var(--o); }
+      .text {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .meta {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .meta img {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+      .source {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .time { flex-shrink: 0; }
+      .empty {
+        padding: 40px 24px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .empty-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--text);
+        margin-bottom: 6px;
+      }
+      .empty-body {
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      kbd {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        background: #efe9da;
+        border: 1px solid #ddd5c2;
+        border-radius: 3px;
+        padding: 1px 5px;
+        color: #4a4239;
+      }
+      footer {
+        padding: 8px 14px;
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="title">Highlighter</div>
+        <div class="count" id="count">Loading…</div>
+      </div>
+      <button class="open-btn" id="open">Open library</button>
+    </header>
+    <div class="list" id="list"></div>
+    <footer>
+      <span>Select text on any page to save</span>
+      <span><kbd>Alt</kbd> + <kbd>H</kbd></span>
+    </footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

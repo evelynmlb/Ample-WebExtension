@@ -54,6 +54,8 @@ const main = async () => {
 
   copyFileSync(resolve(extensionSrc, "manifest.json"), resolve(distDir, "manifest.json"));
   copyFileSync(resolve(extensionSrc, "content.css"), resolve(distDir, "content.css"));
+  copyFileSync(resolve(extensionSrc, "popup.html"), resolve(distDir, "popup.html"));
+  copyFileSync(resolve(extensionSrc, "popup.js"), resolve(distDir, "popup.js"));
 
   await buildIcons();
 

@@ -6,7 +6,6 @@
   "description": "Highlight text on any web page and save it — with source URL, page title, surrounding context, color, tags, and notes — into a clean session library.",
   "action": {
     "default_title": "Open Highlighter library",
-    "default_popup": "index.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

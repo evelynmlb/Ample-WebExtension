@@ -99,15 +99,28 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
+const LIBRARY_URL = chrome.runtime.getURL("index.html");
+
+const openLibrary = async (): Promise<void> => {
+  // Re-use an existing library tab if one is already open; otherwise open a new one.
+  const existing = await chrome.tabs.query({ url: `${LIBRARY_URL}*` });
+  if (existing.length > 0 && existing[0].id !== undefined) {
+    await chrome.tabs.update(existing[0].id, { active: true });
+    if (existing[0].windowId !== undefined) {
+      await chrome.windows.update(existing[0].windowId, { focused: true });
+    }
+    return;
+  }
+  await chrome.tabs.create({ url: LIBRARY_URL });
+};
+
+chrome.action.onClicked.addListener(() => {
+  void openLibrary();
+});
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "open-popup") {
-    if (chrome.action?.openPopup) {
-      try {
-        await chrome.action.openPopup();
-      } catch {
-        // Ignored — openPopup may be unavailable.
-      }
-    }
+    await openLibrary();
     return;
   }
   if (command === "save-selection") {

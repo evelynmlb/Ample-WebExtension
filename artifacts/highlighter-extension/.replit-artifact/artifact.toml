@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Highlighter Extension"
+version = "1.0.0"
+id = "artifacts/highlighter-extension"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25143
+
+[services.development]
+run = "pnpm --filter @workspace/highlighter-extension run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/highlighter-extension", "run", "build" ]
+publicDir = "artifacts/highlighter-extension/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25143"
+BASE_PATH = "/"

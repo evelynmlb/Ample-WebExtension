@@ -18,12 +18,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Highlight, HighlightColor, Folder } from "@/lib/types";
 
 const COLOR_MAP: Record<HighlightColor, string> = {
@@ -125,63 +128,82 @@ export function HighlightCard({ highlight, folders, onUpdate, onDelete, isDragOv
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem onClick={() => setIsEditingNote(true)}>
-              <Edit2 className="mr-2 h-4 w-4" /> Edit Note
+              <Edit2 className="mr-2 h-4 w-4" /> Edit note
             </DropdownMenuItem>
-            
-            <Popover>
-              <PopoverTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                  <div className="flex items-center">
-                    <div className="mr-2 h-4 w-4 rounded-full border" style={{ backgroundColor: COLOR_MAP[highlight.color] }} />
-                    Change Color
-                  </div>
-                </DropdownMenuItem>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-2" side="right">
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <div
+                  className="mr-2 h-4 w-4 rounded-full border ring-1 ring-black/10"
+                  style={{ backgroundColor: COLOR_MAP[highlight.color] }}
+                />
+                Change color
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="p-2">
                 <div className="flex gap-2">
                   {Object.entries(COLOR_MAP).map(([color, value]) => (
                     <button
                       key={color}
-                      className={`h-6 w-6 rounded-full border-2 ${highlight.color === color ? 'border-primary' : 'border-transparent'}`}
+                      type="button"
+                      aria-label={`${color} highlight`}
+                      className={`h-6 w-6 rounded-full border-2 transition-transform ${highlight.color === color ? 'border-foreground scale-110' : 'border-transparent hover:border-muted-foreground/40'}`}
                       style={{ backgroundColor: value }}
                       onClick={() => onUpdate(highlight.id, { color: color as HighlightColor })}
                     />
                   ))}
                 </div>
-              </PopoverContent>
-            </Popover>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                  <FolderInput className="mr-2 h-4 w-4" /> Move to Folder
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <FolderInput className="mr-2 h-4 w-4" />
+                <span className="flex-1">Move to folder</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-56 max-h-72 overflow-y-auto">
+                <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Move to
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => onUpdate(highlight.id, { folderId: null })}
+                  className={highlight.folderId === null ? "bg-accent" : ""}
+                >
+                  <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground/50" />
+                  Unfiled
+                  {highlight.folderId === null && (
+                    <span className="ml-auto text-xs text-muted-foreground">✓</span>
+                  )}
                 </DropdownMenuItem>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-0" side="right">
-                <div className="flex flex-col py-1">
-                  <button
-                    className="px-4 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => onUpdate(highlight.id, { folderId: null })}
-                  >
-                    Unfiled
-                  </button>
-                  {folders.map(f => (
-                    <button
+                {folders.length > 0 && <DropdownMenuSeparator />}
+                {folders.length === 0 ? (
+                  <div className="px-2 py-2 text-xs text-muted-foreground">
+                    No folders yet. Create one in the sidebar.
+                  </div>
+                ) : (
+                  folders.map((f) => (
+                    <DropdownMenuItem
                       key={f.id}
-                      className="px-4 py-2 text-left text-sm hover:bg-muted"
                       onClick={() => onUpdate(highlight.id, { folderId: f.id })}
+                      className={highlight.folderId === f.id ? "bg-accent" : ""}
                     >
-                      {f.name}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            
+                      <span
+                        className="mr-2 inline-block h-2.5 w-2.5 rounded-full ring-1 ring-black/10"
+                        style={{ backgroundColor: COLOR_MAP[f.color] }}
+                      />
+                      <span className="truncate">{f.name}</span>
+                      {highlight.folderId === f.id && (
+                        <span className="ml-auto text-xs text-muted-foreground">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => onDelete(highlight.id)}
             >

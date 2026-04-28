@@ -4,6 +4,10 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Artifacts
+
+- **Highlighter Extension** (`artifacts/highlighter-extension/`) — React + Vite popup UI for a Chrome MV3 browser extension that lets users highlight text on any web page and save it (with source URL, page title, surrounding context, color, tags, and notes) to a session-only library. The same React app powers both the in-workspace preview (uses `sessionStorage` with seeded sample data) and the real extension popup (uses `chrome.storage.session`). Extension scripts (manifest, content script, background service worker, icons) live in `extension/` and are bundled to `dist/` by `pnpm --filter @workspace/highlighter-extension run build:ext`. Load `dist/` as an unpacked extension at `chrome://extensions` (Developer Mode on).
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

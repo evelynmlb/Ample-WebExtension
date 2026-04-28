@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Highlighter — capture text from any page",
+  "short_name": "Highlighter",
+  "version": "0.1.0",
+  "description": "Highlight text on any web page and save it — with source URL, page title, surrounding context, color, tags, and notes — into a clean session library.",
+  "action": {
+    "default_title": "Open Highlighter library",
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "activeTab", "contextMenus", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "save-selection": {
+      "suggested_key": {
+        "default": "Alt+H",
+        "mac": "Alt+H"
+      },
+      "description": "Save the current text selection as a highlight"
+    },
+    "open-popup": {
+      "suggested_key": {
+        "default": "Alt+Shift+H",
+        "mac": "Alt+Shift+H"
+      },
+      "description": "Open the Highlighter library"
+    }
+  }
+}

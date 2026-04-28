@@ -1,0 +1,103 @@
+.__highlighter-toolbar__ {
+  position: absolute;
+  z-index: 2147483647;
+  transform: translate(-50%, 0);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #111111;
+  color: #ffffff;
+  border-radius: 999px;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  font: 500 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+  user-select: none;
+  animation: __highlighter-pop__ 120ms ease-out;
+}
+
+@keyframes __highlighter-pop__ {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.__highlighter-toolbar-label__ {
+  padding: 0 6px 0 4px;
+  letter-spacing: 0.01em;
+  opacity: 0.8;
+}
+
+.__highlighter-swatch__ {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  transition: transform 100ms ease;
+}
+
+.__highlighter-swatch__:hover {
+  transform: scale(1.15);
+}
+
+.__highlighter-swatch__:active {
+  transform: scale(0.95);
+}
+
+.__highlighter-mark__ {
+  background-color: #ffe680;
+  color: inherit;
+  padding: 0;
+  border-radius: 2px;
+}
+
+.__highlighter-toast__ {
+  position: fixed;
+  z-index: 2147483647;
+  bottom: 24px;
+  left: 50%;
+  transform: translate(-50%, 12px);
+  padding: 10px 14px 10px 12px;
+  background: #111111;
+  color: #ffffff;
+  border-radius: 999px;
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+  pointer-events: none;
+}
+
+.__highlighter-toast__::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #ffe680);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.__highlighter-toast--in__ {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

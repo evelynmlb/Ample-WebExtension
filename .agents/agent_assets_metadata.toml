@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "trcvOnwQRvXreAzVJbGUK"
+uri = "file://artifacts/highlighter-extension/highlighter-extension.zip"
+type = "unspecified"
+title = "Highlighter Extension (unpacked, ready to load)"

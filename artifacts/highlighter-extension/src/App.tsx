@@ -10,6 +10,7 @@ import {
 import { useHighlights } from "@/hooks/use-highlights";
 import { HighlightCard } from "@/components/HighlightCard";
 import { Highlight, SortMode } from "@/lib/types";
+import { FolderRow, NewFolderPopover } from "@/components/FolderControls";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -30,10 +31,7 @@ import {
 } from "@dnd-kit/sortable";
 import {
   Search,
-  Settings,
   HelpCircle,
-  Folder as FolderIcon,
-  Plus,
   Trash2,
   AlertTriangle,
 } from "lucide-react";
@@ -100,6 +98,29 @@ function MainDashboard() {
 
     return sortHighlights(result, sortMode);
   }, [highlights, selectedFolderId, searchQuery, sortMode]);
+
+  const sortedFolders = useMemo(
+    () =>
+      [...folders].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt,
+      ),
+    [folders],
+  );
+
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const h of highlights) {
+      if (h.folderId) {
+        counts.set(h.folderId, (counts.get(h.folderId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [highlights]);
+
+  const unfiledCount = useMemo(
+    () => highlights.filter((h) => !h.folderId).length,
+    [highlights],
+  );
 
   const activeHighlight = useMemo(() => 
     highlights.find((h) => h.id === activeDragId),
@@ -241,56 +262,77 @@ function MainDashboard() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 space-y-0.5">
             <button
               onClick={() => setSelectedFolderId("all")}
-              className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors ${
+              className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
                 selectedFolderId === "all" ? "bg-primary text-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              All
+              <span>All</span>
+              {highlights.length > 0 && (
+                <span className={`text-[10px] tabular-nums ${selectedFolderId === "all" ? "text-primary-foreground/70" : "text-sidebar-foreground/50"}`}>
+                  {highlights.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setSelectedFolderId("unfiled")}
-              className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors ${
+              className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
                 selectedFolderId === "unfiled" ? "bg-primary text-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              Unfiled
+              <span>Unfiled</span>
+              {unfiledCount > 0 && (
+                <span className={`text-[10px] tabular-nums ${selectedFolderId === "unfiled" ? "text-primary-foreground/70" : "text-sidebar-foreground/50"}`}>
+                  {unfiledCount}
+                </span>
+              )}
             </button>
             <div className="py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2 mb-1">Folders</div>
-              {folders.map(folder => (
-                <div key={folder.id} className="group relative">
-                  <button
-                    onClick={() => setSelectedFolderId(folder.id)}
-                    className={`w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors pr-6 ${
-                      selectedFolderId === folder.id ? "bg-primary text-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent"
-                    }`}
-                  >
-                    <FolderIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                    <span className="truncate">{folder.name}</span>
-                  </button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute right-0 top-0 h-8 w-6 opacity-0 group-hover:opacity-100 text-sidebar-foreground/50 hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      actions.removeFolder(folder.id);
-                      if (selectedFolderId === folder.id) setSelectedFolderId("all");
+              {sortedFolders.length === 0 ? (
+                <p className="px-2 py-1 text-[11px] text-sidebar-foreground/50 leading-relaxed">
+                  No folders yet. Create one below to organize highlights.
+                </p>
+              ) : (
+                sortedFolders.map((folder) => (
+                  <FolderRow
+                    key={folder.id}
+                    folder={folder}
+                    isSelected={selectedFolderId === folder.id}
+                    count={folderCounts.get(folder.id) ?? 0}
+                    onSelect={() => setSelectedFolderId(folder.id)}
+                    onRename={async (name) => {
+                      await actions.updateFolder(folder.id, { name });
                     }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+                    onChangeColor={async (color) => {
+                      await actions.updateFolder(folder.id, { color });
+                    }}
+                    onDelete={async () => {
+                      const movedCount = folderCounts.get(folder.id) ?? 0;
+                      await actions.removeFolder(folder.id);
+                      if (selectedFolderId === folder.id) {
+                        setSelectedFolderId("all");
+                      }
+                      toast(
+                        movedCount > 0
+                          ? `Folder deleted — ${movedCount} highlight${movedCount === 1 ? "" : "s"} moved to Unfiled`
+                          : "Folder deleted",
+                      );
+                    }}
+                  />
+                ))
+              )}
             </div>
           </div>
           <div className="px-2 mt-auto pt-2 border-t border-sidebar-border">
-            <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={() => {
-              const name = prompt("New folder name:");
-              if (name) actions.addFolder({ name, color: "blue" });
-            }}>
-              <Plus className="h-3 w-3 mr-2" /> New Folder
-            </Button>
+            <NewFolderPopover
+              onCreate={async (folder) => {
+                const created = await actions.addFolder(folder);
+                if (created?.id) {
+                  setSelectedFolderId(created.id);
+                }
+                toast(`Folder "${folder.name}" created`);
+              }}
+            />
           </div>
         </div>
 

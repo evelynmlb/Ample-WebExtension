@@ -22,6 +22,23 @@ interface StoredHighlight extends Omit<SaveMessage, "type"> {
 
 const STORAGE_KEY = "highlights";
 
+// Allow the content script to read chrome.storage.session so it can recolor
+// the native ::target-text highlight to match the saved color when a user
+// follows a Highlighter source link. Without this, content scripts get an
+// empty result. Must be called at the top level of the service worker so it
+// re-applies on every wake-up.
+const session = chrome.storage.session as unknown as {
+  setAccessLevel?: (opts: {
+    accessLevel: "TRUSTED_CONTEXTS" | "TRUSTED_AND_UNTRUSTED_CONTEXTS";
+  }) => Promise<void>;
+};
+session
+  .setAccessLevel?.({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" })
+  .catch(() => {
+    // Older Chrome versions don't support setAccessLevel; the message-based
+    // fallback below handles those cases.
+  });
+
 const COLOR_LABELS: Record<HighlightColor, string> = {
   yellow: "Yellow",
   green: "Green",
@@ -133,9 +150,17 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "highlighter:save") return false;
-  void persist(message as SaveMessage).then((saved) => {
-    sendResponse({ ok: true, id: saved.id });
-  });
-  return true;
+  if (message?.type === "highlighter:save") {
+    void persist(message as SaveMessage).then((saved) => {
+      sendResponse({ ok: true, id: saved.id });
+    });
+    return true;
+  }
+  if (message?.type === "highlighter:get-highlights") {
+    void readAll().then((items) => {
+      sendResponse({ ok: true, highlights: items });
+    });
+    return true;
+  }
+  return false;
 });

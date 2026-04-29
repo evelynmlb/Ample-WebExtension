@@ -298,10 +298,19 @@ const parseTextDirective = (
   return null;
 };
 
-const findMatchingColor = async (): Promise<HighlightColor | null> => {
-  const directive = parseTextDirective(window.location.hash);
-  if (!directive) return null;
-
+const fetchStoredHighlights = async (): Promise<StoredHighlightLite[]> => {
+  // Prefer asking the background service worker, which always has access to
+  // chrome.storage.session. Falls back to a direct read if messaging fails.
+  try {
+    const response = (await chrome.runtime.sendMessage({
+      type: "highlighter:get-highlights",
+    })) as { ok?: boolean; highlights?: StoredHighlightLite[] } | undefined;
+    if (response?.ok && Array.isArray(response.highlights)) {
+      return response.highlights;
+    }
+  } catch {
+    // ignore — try direct read below
+  }
   const session = (
     chrome as unknown as {
       storage?: {
@@ -311,16 +320,22 @@ const findMatchingColor = async (): Promise<HighlightColor | null> => {
       };
     }
   ).storage?.session;
-  if (!session) return null;
-
-  let stored: StoredHighlightLite[];
+  if (!session) return [];
   try {
     const result = await session.get("highlights");
     const raw = result.highlights;
-    stored = Array.isArray(raw) ? (raw as StoredHighlightLite[]) : [];
+    return Array.isArray(raw) ? (raw as StoredHighlightLite[]) : [];
   } catch {
-    return null;
+    return [];
   }
+};
+
+const findMatchingColor = async (): Promise<HighlightColor | null> => {
+  const directive = parseTextDirective(window.location.hash);
+  if (!directive) return null;
+
+  const stored = await fetchStoredHighlights();
+  if (stored.length === 0) return null;
 
   const pageUrl = `${location.origin}${location.pathname}${location.search}`;
   const startKey = normalizeText(directive.start);

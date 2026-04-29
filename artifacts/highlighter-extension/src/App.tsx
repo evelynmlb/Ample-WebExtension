@@ -149,15 +149,31 @@ function MainDashboard() {
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      if (sortMode !== "custom") return; // Only allow reorder in custom mode
-      
-      const oldIndex = filteredAndSortedHighlights.findIndex((h) => h.id === active.id);
-      const newIndex = filteredAndSortedHighlights.findIndex((h) => h.id === over.id);
-      
-      const newlyOrdered = arrayMove(filteredAndSortedHighlights, oldIndex, newIndex);
-      actions.reorderHighlights(newlyOrdered.map(h => h.id));
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = filteredAndSortedHighlights.findIndex((h) => h.id === active.id);
+    const newIndex = filteredAndSortedHighlights.findIndex((h) => h.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newFilteredOrder = arrayMove(filteredAndSortedHighlights, oldIndex, newIndex);
+
+    // Build the full new order: walk the current visible-sorted full list,
+    // replacing items that belong to the filtered subset with their new positions.
+    const fullSorted = sortHighlights(highlights, sortMode);
+    const filteredIds = new Set(filteredAndSortedHighlights.map((h) => h.id));
+    let cursor = 0;
+    const fullNewOrder = fullSorted.map((h) =>
+      filteredIds.has(h.id) ? newFilteredOrder[cursor++] : h,
+    );
+
+    actions.reorderHighlights(fullNewOrder.map((h) => h.id));
+
+    if (sortMode !== "custom") {
+      setSortMode("custom");
+      toast("Switched to custom order", {
+        description: "Drag highlights anywhere to reorder. Use the sort menu to revert.",
+      });
     }
   };
 
@@ -258,7 +274,7 @@ function MainDashboard() {
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar / Folder Strip */}
-        <div className="w-32 shrink-0 border-r bg-sidebar flex flex-col pt-2 pb-4">
+        <div className="w-48 shrink-0 border-r bg-sidebar flex flex-col pt-2 pb-4">
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 space-y-0.5">
             <button
               onClick={() => setSelectedFolderId("all")}

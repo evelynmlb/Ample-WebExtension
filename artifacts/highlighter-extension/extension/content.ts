@@ -34,6 +34,39 @@ const getFaviconUrl = (): string => {
   return `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
 };
 
+// Encodes a value for the text fragment; Chrome requires comma, ampersand,
+// hyphen, and percent to be percent-encoded so they don't collide with the
+// fragment grammar (prefix-,start,end,-suffix).
+const encodeFragmentPart = (value: string): string =>
+  encodeURIComponent(value)
+    .replace(/-/g, "%2D")
+    .replace(/'/g, "%27")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29");
+
+// Builds the most reliable native text-fragment for a quote so that opening
+// the source link scrolls to and highlights the saved text in Chrome.
+const buildTextFragment = (rawText: string): string => {
+  const clean = rawText.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+
+  // Short quotes fit comfortably in a single `text=...` parameter.
+  if (clean.length <= 120) {
+    return `#:~:text=${encodeFragmentPart(clean)}`;
+  }
+
+  // For long quotes use the start,end form so Chrome highlights the whole
+  // span between the first and last few words. This is much more robust than
+  // truncating, which can fail when the truncated tail doesn't match.
+  const words = clean.split(" ");
+  const startWords = words.slice(0, 6).join(" ");
+  const endWords = words.slice(-6).join(" ");
+  if (!endWords || startWords === endWords) {
+    return `#:~:text=${encodeFragmentPart(clean.slice(0, 200))}`;
+  }
+  return `#:~:text=${encodeFragmentPart(startWords)},${encodeFragmentPart(endWords)}`;
+};
+
 const buildPayload = (
   selection: Selection,
   text: string,
@@ -67,9 +100,7 @@ const buildPayload = (
     return "";
   })();
 
-  const fragment = `#:~:text=${encodeURIComponent(
-    text.slice(0, 200).replace(/\s+/g, " ").trim(),
-  )}`;
+  const fragment = buildTextFragment(text);
   const sourceUrl = `${location.origin}${location.pathname}${location.search}${fragment}`;
   const sourcePageUrl = `${location.origin}${location.pathname}${location.search}`;
 

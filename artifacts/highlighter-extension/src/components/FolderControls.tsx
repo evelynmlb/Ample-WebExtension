@@ -196,7 +196,7 @@ export function FolderRow({
 
   if (isRenaming) {
     return (
-      <div className="flex items-center gap-1 px-2 py-1">
+      <div className="flex items-center gap-2 px-2 py-1">
         <span
           className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: COLOR_VAR[folder.color] }}
@@ -205,7 +205,7 @@ export function FolderRow({
           ref={renameRef}
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
-          className="h-7 text-sm flex-1 px-1.5"
+          className="h-7 text-sm flex-1 px-1.5 min-w-0"
           maxLength={40}
           onKeyDown={(e) => {
             if (e.key === "Enter") commitRename();
@@ -219,51 +219,56 @@ export function FolderRow({
 
   return (
     <>
-      <div className="group/row relative">
+      <div
+        className={`group/row flex items-center gap-1 rounded-md pl-2 pr-1 py-1 transition-colors ${
+          isSelected
+            ? "bg-primary text-primary-foreground"
+            : "text-sidebar-foreground hover:bg-sidebar-accent"
+        }`}
+      >
         <button
           onClick={onSelect}
-          className={`w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors pr-7 ${
-            isSelected
-              ? "bg-primary text-primary-foreground font-medium"
-              : "text-sidebar-foreground hover:bg-sidebar-accent"
-          }`}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left text-sm"
           title={folder.name}
         >
           <span
             className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
             style={{ backgroundColor: COLOR_VAR[folder.color] }}
           />
-          <span className="truncate flex-1">{folder.name}</span>
-          {count > 0 && (
-            <span
-              className={`text-[10px] tabular-nums ${
-                isSelected
-                  ? "text-primary-foreground/70"
-                  : "text-sidebar-foreground/50"
-              }`}
-            >
-              {count}
-            </span>
-          )}
+          <span className={`truncate ${isSelected ? "font-medium" : ""}`}>
+            {folder.name}
+          </span>
         </button>
+
+        {count > 0 && (
+          <span
+            className={`text-[10px] tabular-nums shrink-0 px-1 ${
+              isSelected
+                ? "text-primary-foreground/70"
+                : "text-sidebar-foreground/50"
+            }`}
+          >
+            {count}
+          </span>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className={`absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 transition-opacity ${
+              className={`h-6 w-6 shrink-0 transition-opacity ${
                 isSelected
-                  ? "text-primary-foreground/80 opacity-100"
-                  : "text-sidebar-foreground/50 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
-              } hover:bg-black/10`}
+                  ? "text-primary-foreground/80 opacity-100 hover:bg-white/10 hover:text-primary-foreground"
+                  : "text-sidebar-foreground/50 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 hover:bg-sidebar-accent-foreground/10"
+              }`}
               onClick={(e) => e.stopPropagation()}
               aria-label={`Folder options for ${folder.name}`}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="right" className="w-44 p-1">
+          <DropdownMenuContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
             <DropdownMenuItem onClick={() => setIsRenaming(true)}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Rename
             </DropdownMenuItem>

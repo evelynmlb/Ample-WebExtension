@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -22,6 +24,7 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
+  CollisionDetection,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -83,6 +86,23 @@ function MainDashboard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Custom collision detection: if the pointer is over any sidebar folder
+  // droppable, prefer that target. Otherwise fall back to closestCenter so
+  // sortable reorder of highlight cards still works as before.
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerHits = pointerWithin(args);
+    const folderHit = pointerHits.find((c) =>
+      String(c.id).startsWith("folder:"),
+    );
+    if (folderHit) return [folderHit];
+    const rectHits = rectIntersection(args);
+    const folderRectHit = rectHits.find((c) =>
+      String(c.id).startsWith("folder:"),
+    );
+    if (folderRectHit) return [folderRectHit];
+    return closestCenter(args);
+  };
 
   const filteredAndSortedHighlights = useMemo(() => {
     let result = highlights;
@@ -295,7 +315,7 @@ function MainDashboard() {
       {/* Main Content Area */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >

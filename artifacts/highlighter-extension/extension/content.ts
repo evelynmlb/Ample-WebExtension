@@ -45,33 +45,26 @@ const encodeFragmentPart = (value: string): string =>
     .replace(/\)/g, "%29");
 
 // Builds the most reliable native text-fragment for a quote so that opening
-// the source link scrolls to and highlights the saved text in Chrome.
-// The non-standard `&hl=<color>` directive is ignored by Chrome's text-
-// fragment matcher but is read back by our content script on load to recolor
-// the native highlight via ::target-text.
-const buildTextFragment = (rawText: string, color: HighlightColor): string => {
+// the source link scrolls to and highlights the saved text in Chrome. We
+// deliberately do NOT add custom directives — Chrome's text-fragment parser
+// can be brittle about unknown `&name=value` pairs and may refuse to match
+// the text when extras are present. The color is recovered by looking up the
+// saved highlight from chrome.storage on load (see applyTargetTextColor).
+const buildTextFragment = (rawText: string): string => {
   const clean = rawText.replace(/\s+/g, " ").trim();
   if (!clean) return "";
 
-  let textPart: string;
   if (clean.length <= 120) {
-    // Short quotes fit comfortably in a single `text=...` parameter.
-    textPart = encodeFragmentPart(clean);
-  } else {
-    // For long quotes use the start,end form so Chrome highlights the whole
-    // span between the first and last few words. This is much more robust than
-    // truncating, which can fail when the truncated tail doesn't match.
-    const words = clean.split(" ");
-    const startWords = words.slice(0, 6).join(" ");
-    const endWords = words.slice(-6).join(" ");
-    if (!endWords || startWords === endWords) {
-      textPart = encodeFragmentPart(clean.slice(0, 200));
-    } else {
-      textPart = `${encodeFragmentPart(startWords)},${encodeFragmentPart(endWords)}`;
-    }
+    return `#:~:text=${encodeFragmentPart(clean)}`;
   }
 
-  return `#:~:text=${textPart}&hl=${color}`;
+  const words = clean.split(" ");
+  const startWords = words.slice(0, 6).join(" ");
+  const endWords = words.slice(-6).join(" ");
+  if (!endWords || startWords === endWords) {
+    return `#:~:text=${encodeFragmentPart(clean.slice(0, 200))}`;
+  }
+  return `#:~:text=${encodeFragmentPart(startWords)},${encodeFragmentPart(endWords)}`;
 };
 
 const buildPayload = (
@@ -107,7 +100,7 @@ const buildPayload = (
     return "";
   })();
 
-  const fragment = buildTextFragment(text, color);
+  const fragment = buildTextFragment(text);
   const sourceUrl = `${location.origin}${location.pathname}${location.search}${fragment}`;
   const sourcePageUrl = `${location.origin}${location.pathname}${location.search}`;
 
@@ -259,23 +252,112 @@ chrome.runtime.onMessage.addListener((message: { type?: string; color?: Highligh
 
 // On page load, if we arrived via a Highlighter text-fragment URL, recolor
 // the browser's native ::target-text highlight to match the saved color.
+// We look up the matching highlight from chrome.storage.session by quote
+// text + page URL so we never have to mutate the URL itself.
 const TARGET_STYLE_ID = "__highlighter-target-style__";
 
-const applyTargetTextColor = (): void => {
-  const hash = window.location.hash;
-  if (!hash.includes(":~:text=")) return;
-  const colorMatch = hash.match(/[?&]hl=(yellow|green|blue|pink|orange)/);
-  if (!colorMatch) return;
-  const color = colorMatch[1] as HighlightColor;
+interface StoredHighlightLite {
+  text: string;
+  color: HighlightColor;
+  sourcePageUrl?: string;
+}
+
+const normalizeText = (s: string): string =>
+  s.replace(/\s+/g, " ").trim().toLowerCase();
+
+const decodeFragmentText = (raw: string): string => {
+  try {
+    return decodeURIComponent(raw.replace(/%2D/gi, "-"));
+  } catch {
+    return raw;
+  }
+};
+
+// Parse the `text=` directive from a fragment like
+// `#:~:text=foo` or `#:~:text=startWords,endWords` and return the
+// decoded start/end pieces.
+const parseTextDirective = (
+  hash: string,
+): { start: string; end: string | null } | null => {
+  const idx = hash.indexOf(":~:");
+  if (idx === -1) return null;
+  const directives = hash.slice(idx + 3).split("&");
+  for (const d of directives) {
+    if (!d.startsWith("text=")) continue;
+    const value = d.slice(5);
+    const parts = value.split(",");
+    // text=[prefix-,]start[,end][,-suffix] — strip prefix-/suffix-
+    const cleaned = parts.filter(
+      (p) => !p.endsWith("-") && !p.startsWith("-"),
+    );
+    if (cleaned.length === 0) continue;
+    const start = decodeFragmentText(cleaned[0]);
+    const end = cleaned.length > 1 ? decodeFragmentText(cleaned[1]) : null;
+    return { start, end };
+  }
+  return null;
+};
+
+const findMatchingColor = async (): Promise<HighlightColor | null> => {
+  const directive = parseTextDirective(window.location.hash);
+  if (!directive) return null;
+
+  const session = (
+    chrome as unknown as {
+      storage?: {
+        session?: {
+          get: (k: string) => Promise<Record<string, unknown>>;
+        };
+      };
+    }
+  ).storage?.session;
+  if (!session) return null;
+
+  let stored: StoredHighlightLite[];
+  try {
+    const result = await session.get("highlights");
+    const raw = result.highlights;
+    stored = Array.isArray(raw) ? (raw as StoredHighlightLite[]) : [];
+  } catch {
+    return null;
+  }
+
+  const pageUrl = `${location.origin}${location.pathname}${location.search}`;
+  const startKey = normalizeText(directive.start);
+  const endKey = directive.end ? normalizeText(directive.end) : null;
+
+  // Prefer highlights saved from the same page; fall back to any match.
+  const sameOriginFirst = [
+    ...stored.filter((h) => h.sourcePageUrl === pageUrl),
+    ...stored.filter((h) => h.sourcePageUrl !== pageUrl),
+  ];
+
+  for (const h of sameOriginFirst) {
+    const t = normalizeText(h.text);
+    if (endKey) {
+      if (t.startsWith(startKey) && t.endsWith(endKey)) return h.color;
+    } else {
+      if (t === startKey || t.includes(startKey)) return h.color;
+    }
+  }
+  return null;
+};
+
+const applyTargetTextColor = async (): Promise<void> => {
+  if (!window.location.hash.includes(":~:text=")) return;
+  if (document.getElementById(TARGET_STYLE_ID)) return;
+  const color = await findMatchingColor();
+  if (!color) return;
   const hex = COLOR_HEX[color];
   if (!hex) return;
-  if (document.getElementById(TARGET_STYLE_ID)) return;
-
   const style = document.createElement("style");
   style.id = TARGET_STYLE_ID;
   style.textContent = `::target-text { background-color: ${hex} !important; color: inherit !important; text-decoration-color: ${hex} !important; }`;
   (document.head || document.documentElement).appendChild(style);
 };
 
-applyTargetTextColor();
-window.addEventListener("hashchange", applyTargetTextColor);
+void applyTargetTextColor();
+window.addEventListener("hashchange", () => {
+  document.getElementById(TARGET_STYLE_ID)?.remove();
+  void applyTargetTextColor();
+});

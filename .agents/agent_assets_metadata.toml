@@ -5,4 +5,4 @@ generated = []
 id = "trcvOnwQRvXreAzVJbGUK"
 uri = "file://artifacts/highlighter-extension/highlighter-extension.zip"
 type = "unspecified"
-title = "Highlighter Extension v0.1.8 (color match + drag-to-folder)"
+title = "Highlighter Extension v0.1.9 (real fixes: text-fragment + drag-to-folder)"

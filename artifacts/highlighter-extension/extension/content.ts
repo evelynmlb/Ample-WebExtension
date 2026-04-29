@@ -250,11 +250,11 @@ chrome.runtime.onMessage.addListener((message: { type?: string; color?: Highligh
   }
 });
 
-// On page load, if we arrived via a Highlighter text-fragment URL, recolor
-// the browser's native ::target-text highlight to match the saved color.
-// We look up the matching highlight from chrome.storage.session by quote
-// text + page URL so we never have to mutate the URL itself.
-const TARGET_STYLE_ID = "__highlighter-target-style__";
+// On page load, if we arrived via a Highlighter text-fragment URL, find the
+// matching saved highlight and overlay our own colored <mark> so the result
+// matches the user's saved color (Chrome's default ::target-text shows in
+// lavender and isn't reliably restyleable across pages with strict CSP).
+const TARGET_ACTIVE_CLASS = "__highlighter-target-active__";
 
 interface StoredHighlightLite {
   text: string;
@@ -330,7 +330,7 @@ const fetchStoredHighlights = async (): Promise<StoredHighlightLite[]> => {
   }
 };
 
-const findMatchingColor = async (): Promise<HighlightColor | null> => {
+const findMatchingHighlight = async (): Promise<StoredHighlightLite | null> => {
   const directive = parseTextDirective(window.location.hash);
   if (!directive) return null;
 
@@ -350,29 +350,195 @@ const findMatchingColor = async (): Promise<HighlightColor | null> => {
   for (const h of sameOriginFirst) {
     const t = normalizeText(h.text);
     if (endKey) {
-      if (t.startsWith(startKey) && t.endsWith(endKey)) return h.color;
+      if (t.startsWith(startKey) && t.endsWith(endKey)) return h;
     } else {
-      if (t === startKey || t.includes(startKey)) return h.color;
+      if (t === startKey || t.includes(startKey)) return h;
     }
   }
   return null;
 };
 
+// Walk the document's text nodes to find the saved quote, returning a Range
+// that spans the matching characters. Whitespace is normalized so the lookup
+// works even if the page uses different spacing/line breaks than what was
+// captured at save time.
+const findRangeForText = (needle: string): Range | null => {
+  const target = needle.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!target) return null;
+  if (!document.body) return null;
+
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const parent = (node as Text).parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      const tag = parent.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "TEXTAREA") {
+        return NodeFilter.FILTER_REJECT;
+      }
+      if (parent.closest(`.${TOOLBAR_ID}`) || parent.closest(".__highlighter-mark__")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  // Build a normalized buffer with a per-char map back to (node, offset).
+  // When text nodes live in different block-level ancestors, insert a
+  // synthetic space so quotes that span paragraphs still match cleanly.
+  const blockSelector =
+    "p,div,li,h1,h2,h3,h4,h5,h6,blockquote,article,section,aside,header,footer,main,nav,td,th,tr,pre,figure,figcaption,details,summary,dd,dt,address";
+  let buffer = "";
+  const charMap: { node: Text; offset: number }[] = [];
+  let endsWithSpace = true; // pretend we just saw a space so leading WS is trimmed
+  let prevBlock: Element | null = null;
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    const textNode = n as Text;
+    const block = textNode.parentElement?.closest(blockSelector) ?? null;
+    if (prevBlock && block && prevBlock !== block && !endsWithSpace) {
+      buffer += " ";
+      charMap.push({ node: textNode, offset: 0 });
+      endsWithSpace = true;
+    }
+    prevBlock = block;
+    const text = textNode.nodeValue ?? "";
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const isSpace = /\s/.test(ch);
+      if (isSpace) {
+        if (!endsWithSpace) {
+          buffer += " ";
+          charMap.push({ node: textNode, offset: i });
+          endsWithSpace = true;
+        }
+      } else {
+        buffer += ch.toLowerCase();
+        charMap.push({ node: textNode, offset: i });
+        endsWithSpace = false;
+      }
+    }
+  }
+
+  const idx = buffer.indexOf(target);
+  if (idx === -1) return null;
+  const startMap = charMap[idx];
+  const endMap = charMap[idx + target.length - 1];
+  if (!startMap || !endMap) return null;
+
+  try {
+    const range = document.createRange();
+    range.setStart(startMap.node, startMap.offset);
+    range.setEnd(endMap.node, endMap.offset + 1);
+    return range;
+  } catch {
+    return null;
+  }
+};
+
+// Wrap a Range with a styled <mark>. Handles ranges that cross element
+// boundaries by splitting the affected text nodes.
+const wrapRangeWithMark = (range: Range, color: HighlightColor): boolean => {
+  const className = `__highlighter-mark__ __highlighter-mark--${color}__`;
+
+  // Fast path: range fits entirely inside one element with no other content
+  // between start and end.
+  try {
+    const mark = document.createElement("mark");
+    mark.className = className;
+    range.surroundContents(mark);
+    return true;
+  } catch {
+    // fall through to the multi-node path
+  }
+
+  const startNode = range.startContainer;
+  const endNode = range.endContainer;
+  const startOffset = range.startOffset;
+  const endOffset = range.endOffset;
+
+  // Collect every text node intersecting the range up-front so subsequent
+  // mutations don't disturb our iteration.
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(
+    range.commonAncestorContainer,
+    NodeFilter.SHOW_TEXT,
+  );
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    if (range.intersectsNode(n)) textNodes.push(n as Text);
+  }
+  if (
+    startNode.nodeType === Node.TEXT_NODE &&
+    !textNodes.includes(startNode as Text)
+  ) {
+    textNodes.unshift(startNode as Text);
+  }
+  if (
+    endNode.nodeType === Node.TEXT_NODE &&
+    !textNodes.includes(endNode as Text)
+  ) {
+    textNodes.push(endNode as Text);
+  }
+  if (textNodes.length === 0) return false;
+
+  for (const node of textNodes) {
+    const text = node.nodeValue ?? "";
+    const isStart = node === startNode;
+    const isEnd = node === endNode;
+    const lo = isStart ? startOffset : 0;
+    const hi = isEnd ? endOffset : text.length;
+    if (hi <= lo) continue;
+
+    const before = text.slice(0, lo);
+    const middle = text.slice(lo, hi);
+    const after = text.slice(hi);
+    const parent = node.parentNode;
+    if (!parent) continue;
+
+    const mark = document.createElement("mark");
+    mark.className = className;
+    mark.textContent = middle;
+
+    // Insert: [before] [mark] [after] in place of the original node
+    if (after) parent.insertBefore(document.createTextNode(after), node);
+    parent.insertBefore(mark, node);
+    if (before) parent.insertBefore(document.createTextNode(before), mark);
+    parent.removeChild(node);
+  }
+  return true;
+};
+
 const applyTargetTextColor = async (): Promise<void> => {
   if (!window.location.hash.includes(":~:text=")) return;
-  if (document.getElementById(TARGET_STYLE_ID)) return;
-  const color = await findMatchingColor();
-  if (!color) return;
-  const hex = COLOR_HEX[color];
-  if (!hex) return;
-  const style = document.createElement("style");
-  style.id = TARGET_STYLE_ID;
-  style.textContent = `::target-text { background-color: ${hex} !important; color: inherit !important; text-decoration-color: ${hex} !important; }`;
-  (document.head || document.documentElement).appendChild(style);
+  if (document.documentElement.classList.contains(TARGET_ACTIVE_CLASS)) return;
+
+  const match = await findMatchingHighlight();
+  if (!match) return;
+
+  // Wait for next animation frame so any late-rendered content has settled
+  // (e.g. SPAs that hydrate after document_idle).
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+  const range = findRangeForText(match.text);
+  if (!range) return;
+
+  if (wrapRangeWithMark(range, match.color)) {
+    document.documentElement.classList.add(TARGET_ACTIVE_CLASS);
+  }
 };
 
 void applyTargetTextColor();
 window.addEventListener("hashchange", () => {
-  document.getElementById(TARGET_STYLE_ID)?.remove();
+  document.documentElement.classList.remove(TARGET_ACTIVE_CLASS);
+  document
+    .querySelectorAll(
+      ".__highlighter-mark--yellow__, .__highlighter-mark--green__, .__highlighter-mark--blue__, .__highlighter-mark--pink__, .__highlighter-mark--orange__",
+    )
+    .forEach((el) => {
+      const parent = el.parentNode;
+      if (!parent) return;
+      while (el.firstChild) parent.insertBefore(el.firstChild, el);
+      parent.removeChild(el);
+    });
   void applyTargetTextColor();
 });

@@ -63,6 +63,22 @@
   border-radius: 2px;
 }
 
+.__highlighter-mark--yellow__ { background-color: #ffe680 !important; color: inherit !important; padding: 0; border-radius: 2px; }
+.__highlighter-mark--green__  { background-color: #b7f0c2 !important; color: inherit !important; padding: 0; border-radius: 2px; }
+.__highlighter-mark--blue__   { background-color: #b8dcff !important; color: inherit !important; padding: 0; border-radius: 2px; }
+.__highlighter-mark--pink__   { background-color: #ffc9de !important; color: inherit !important; padding: 0; border-radius: 2px; }
+.__highlighter-mark--orange__ { background-color: #ffd3a8 !important; color: inherit !important; padding: 0; border-radius: 2px; }
+
+/* When our content script wraps the target text with its own colored mark,
+   suppress the browser's default lavender ::target-text overlay so the two
+   don't visually conflict. Scoped via a class on <html> so we only suppress
+   when we have actually applied our own highlight. */
+html.__highlighter-target-active__::target-text {
+  background-color: transparent !important;
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
 .__highlighter-toast__ {
   position: fixed;
   z-index: 2147483647;

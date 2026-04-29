@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MoreHorizontal, Pencil, Trash2, Plus } from "lucide-react";
+import { useDroppable } from "@dnd-kit/core";
 import {
   Popover,
   PopoverContent,
@@ -26,6 +27,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HIGHLIGHT_COLORS } from "@/lib/types";
 import type { Folder, HighlightColor, NewFolder } from "@/lib/types";
+
+interface UnfiledDropTargetProps {
+  isSelected: boolean;
+  count: number;
+  onSelect: () => void;
+}
+
+export function UnfiledDropTarget({
+  isSelected,
+  count,
+  onSelect,
+}: UnfiledDropTargetProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "folder:unfiled",
+    data: { type: "folder", folderId: null },
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onSelect}
+      className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
+        isOver
+          ? "ring-2 ring-primary ring-offset-1 ring-offset-sidebar bg-sidebar-accent text-sidebar-foreground"
+          : isSelected
+            ? "bg-primary text-primary-foreground font-medium"
+            : "text-sidebar-foreground hover:bg-sidebar-accent"
+      }`}
+    >
+      <span>Unfiled</span>
+      {count > 0 && (
+        <span
+          className={`text-[10px] tabular-nums ${
+            isSelected && !isOver
+              ? "text-primary-foreground/70"
+              : "text-sidebar-foreground/50"
+          }`}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
 
 const COLOR_VAR: Record<HighlightColor, string> = {
   yellow: "hsl(var(--highlight-yellow))",
@@ -217,13 +261,21 @@ export function FolderRow({
     );
   }
 
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `folder:${folder.id}`,
+    data: { type: "folder", folderId: folder.id },
+  });
+
   return (
     <>
       <div
+        ref={setDropRef}
         className={`group/row flex items-center gap-1 rounded-md pl-2 pr-1 py-1 transition-colors ${
-          isSelected
-            ? "bg-primary text-primary-foreground"
-            : "text-sidebar-foreground hover:bg-sidebar-accent"
+          isOver
+            ? "ring-2 ring-primary ring-offset-1 ring-offset-sidebar bg-sidebar-accent"
+            : isSelected
+              ? "bg-primary text-primary-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent"
         }`}
       >
         <button

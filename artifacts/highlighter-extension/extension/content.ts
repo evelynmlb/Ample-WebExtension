@@ -46,25 +46,32 @@ const encodeFragmentPart = (value: string): string =>
 
 // Builds the most reliable native text-fragment for a quote so that opening
 // the source link scrolls to and highlights the saved text in Chrome.
-const buildTextFragment = (rawText: string): string => {
+// The non-standard `&hl=<color>` directive is ignored by Chrome's text-
+// fragment matcher but is read back by our content script on load to recolor
+// the native highlight via ::target-text.
+const buildTextFragment = (rawText: string, color: HighlightColor): string => {
   const clean = rawText.replace(/\s+/g, " ").trim();
   if (!clean) return "";
 
-  // Short quotes fit comfortably in a single `text=...` parameter.
+  let textPart: string;
   if (clean.length <= 120) {
-    return `#:~:text=${encodeFragmentPart(clean)}`;
+    // Short quotes fit comfortably in a single `text=...` parameter.
+    textPart = encodeFragmentPart(clean);
+  } else {
+    // For long quotes use the start,end form so Chrome highlights the whole
+    // span between the first and last few words. This is much more robust than
+    // truncating, which can fail when the truncated tail doesn't match.
+    const words = clean.split(" ");
+    const startWords = words.slice(0, 6).join(" ");
+    const endWords = words.slice(-6).join(" ");
+    if (!endWords || startWords === endWords) {
+      textPart = encodeFragmentPart(clean.slice(0, 200));
+    } else {
+      textPart = `${encodeFragmentPart(startWords)},${encodeFragmentPart(endWords)}`;
+    }
   }
 
-  // For long quotes use the start,end form so Chrome highlights the whole
-  // span between the first and last few words. This is much more robust than
-  // truncating, which can fail when the truncated tail doesn't match.
-  const words = clean.split(" ");
-  const startWords = words.slice(0, 6).join(" ");
-  const endWords = words.slice(-6).join(" ");
-  if (!endWords || startWords === endWords) {
-    return `#:~:text=${encodeFragmentPart(clean.slice(0, 200))}`;
-  }
-  return `#:~:text=${encodeFragmentPart(startWords)},${encodeFragmentPart(endWords)}`;
+  return `#:~:text=${textPart}&hl=${color}`;
 };
 
 const buildPayload = (
@@ -100,7 +107,7 @@ const buildPayload = (
     return "";
   })();
 
-  const fragment = buildTextFragment(text);
+  const fragment = buildTextFragment(text, color);
   const sourceUrl = `${location.origin}${location.pathname}${location.search}${fragment}`;
   const sourcePageUrl = `${location.origin}${location.pathname}${location.search}`;
 
@@ -249,3 +256,26 @@ chrome.runtime.onMessage.addListener((message: { type?: string; color?: Highligh
     saveSelection(message.color ?? "yellow");
   }
 });
+
+// On page load, if we arrived via a Highlighter text-fragment URL, recolor
+// the browser's native ::target-text highlight to match the saved color.
+const TARGET_STYLE_ID = "__highlighter-target-style__";
+
+const applyTargetTextColor = (): void => {
+  const hash = window.location.hash;
+  if (!hash.includes(":~:text=")) return;
+  const colorMatch = hash.match(/[?&]hl=(yellow|green|blue|pink|orange)/);
+  if (!colorMatch) return;
+  const color = colorMatch[1] as HighlightColor;
+  const hex = COLOR_HEX[color];
+  if (!hex) return;
+  if (document.getElementById(TARGET_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = TARGET_STYLE_ID;
+  style.textContent = `::target-text { background-color: ${hex} !important; color: inherit !important; text-decoration-color: ${hex} !important; }`;
+  (document.head || document.documentElement).appendChild(style);
+};
+
+applyTargetTextColor();
+window.addEventListener("hashchange", applyTargetTextColor);

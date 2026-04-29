@@ -10,7 +10,7 @@ import {
 import { useHighlights } from "@/hooks/use-highlights";
 import { HighlightCard } from "@/components/HighlightCard";
 import { Highlight, SortMode } from "@/lib/types";
-import { FolderRow, NewFolderPopover } from "@/components/FolderControls";
+import { FolderRow, NewFolderPopover, UnfiledDropTarget } from "@/components/FolderControls";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -149,11 +149,32 @@ function MainDashboard() {
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
+    if (!over) return;
 
-    if (!over || active.id === over.id) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
 
-    const oldIndex = filteredAndSortedHighlights.findIndex((h) => h.id === active.id);
-    const newIndex = filteredAndSortedHighlights.findIndex((h) => h.id === over.id);
+    // Drop on a folder (sidebar) → reassign folderId.
+    if (overId.startsWith("folder:")) {
+      const target = overId.slice("folder:".length);
+      const folderId = target === "unfiled" ? null : target;
+      const dragged = highlights.find((h) => h.id === activeId);
+      if (!dragged) return;
+      if (dragged.folderId === folderId) return;
+      actions.moveHighlightToFolder(activeId, folderId);
+      const folderName =
+        folderId === null
+          ? "Unfiled"
+          : (folders.find((f) => f.id === folderId)?.name ?? "folder");
+      toast(`Moved to ${folderName}`);
+      return;
+    }
+
+    // Otherwise: reorder within the highlight list.
+    if (activeId === overId) return;
+
+    const oldIndex = filteredAndSortedHighlights.findIndex((h) => h.id === activeId);
+    const newIndex = filteredAndSortedHighlights.findIndex((h) => h.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
 
     const newFilteredOrder = arrayMove(filteredAndSortedHighlights, oldIndex, newIndex);
@@ -272,6 +293,12 @@ function MainDashboard() {
       </header>
 
       {/* Main Content Area */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar / Folder Strip */}
         <div className="w-48 shrink-0 border-r bg-sidebar flex flex-col pt-2 pb-4">
@@ -289,19 +316,11 @@ function MainDashboard() {
                 </span>
               )}
             </button>
-            <button
-              onClick={() => setSelectedFolderId("unfiled")}
-              className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between ${
-                selectedFolderId === "unfiled" ? "bg-primary text-primary-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent"
-              }`}
-            >
-              <span>Unfiled</span>
-              {unfiledCount > 0 && (
-                <span className={`text-[10px] tabular-nums ${selectedFolderId === "unfiled" ? "text-primary-foreground/70" : "text-sidebar-foreground/50"}`}>
-                  {unfiledCount}
-                </span>
-              )}
-            </button>
+            <UnfiledDropTarget
+              isSelected={selectedFolderId === "unfiled"}
+              count={unfiledCount}
+              onSelect={() => setSelectedFolderId("unfiled")}
+            />
             <div className="py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2 mb-1">Folders</div>
               {sortedFolders.length === 0 ? (
@@ -384,47 +403,41 @@ function MainDashboard() {
                 </p>
               </div>
             ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
+              <SortableContext
+                items={filteredAndSortedHighlights.map(h => h.id)}
+                strategy={verticalListSortingStrategy}
               >
-                <SortableContext
-                  items={filteredAndSortedHighlights.map(h => h.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="flex flex-col gap-4 pb-8">
-                    <AnimatePresence mode="popLayout">
-                      {filteredAndSortedHighlights.map((highlight) => (
-                        <HighlightCard 
-                          key={highlight.id}
-                          highlight={highlight}
-                          folders={folders}
-                          onUpdate={actions.updateHighlight}
-                          onDelete={handleDelete}
-                        />
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </SortableContext>
-                
-                <DragOverlay>
-                  {activeHighlight ? (
-                    <HighlightCard 
-                      highlight={activeHighlight}
-                      folders={folders}
-                      onUpdate={() => {}}
-                      onDelete={() => {}}
-                      isDragOverlay
-                    />
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+                <div className="flex flex-col gap-4 pb-8">
+                  <AnimatePresence mode="popLayout">
+                    {filteredAndSortedHighlights.map((highlight) => (
+                      <HighlightCard 
+                        key={highlight.id}
+                        highlight={highlight}
+                        folders={folders}
+                        onUpdate={actions.updateHighlight}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </SortableContext>
             )}
           </ScrollArea>
         </div>
       </div>
+
+      <DragOverlay>
+        {activeHighlight ? (
+          <HighlightCard
+            highlight={activeHighlight}
+            folders={folders}
+            onUpdate={() => {}}
+            onDelete={() => {}}
+            isDragOverlay
+          />
+        ) : null}
+      </DragOverlay>
+      </DndContext>
     </div>
   );
 }
